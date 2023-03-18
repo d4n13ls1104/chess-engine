@@ -2,7 +2,6 @@ use super::{
     Position,
     piece::{Piece, PieceKind},
     Board,
-    PieceKind
 };
 
 #[derive(Debug, Copy, Clone)]
@@ -56,7 +55,7 @@ impl Move {
 
             Self::PieceMove { origin_square, target_square, origin_piece, target_piece } => {
                 let mut str = String::new();
-                let piece_char = origin_piece.to_char().to_uppercase().to_string();
+                let piece_char = origin_piece.to_char().to_ascii_uppercase();
 
                 let origin_file = (origin_square.1 as u8 + 97) as char;
 

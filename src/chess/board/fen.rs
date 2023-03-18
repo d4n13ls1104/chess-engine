@@ -40,7 +40,7 @@ impl CastleFlags {
     }
 }
 
-pub fn parse_squares(ranks: &str) -> [[Option<Piece>; 8]; 8] {
+pub fn parse_ranks(ranks: &str) -> [[Option<Piece>; 8]; 8] {
     let mut board_state = [[None; 8]; 8];
     let ranks: Vec<&str> = ranks.split('/').collect();
 
@@ -51,7 +51,7 @@ pub fn parse_squares(ranks: &str) -> [[Option<Piece>; 8]; 8] {
             if c.is_numeric() {
                 f_index += c.to_digit(10).unwrap() as usize;
             } else {
-                squares[r_index][f_index] = Some(Piece::from_char(c));
+                board_state[r_index][f_index] = Some(Piece::from_char(c));
                 f_index += 1;
             }
         }
