@@ -4,8 +4,8 @@ use image::{RgbaImage, Rgba, imageops};
 use self::chess_move::Move;
 use self::chess_move::MoveError;
 
-pub use super::board::piece::*;
-pub use super::board::fen::*;
+pub use self::piece::*;
+pub use self::fen::*;
 
 pub mod piece;
 pub mod fen;
@@ -671,7 +671,7 @@ impl Board {
             fen_fields.push(field);
         }
 
-        let squares =  parse_squares(fen_fields[0]);
+        let squares = parse_ranks(fen_fields[0]);
         let active_turn = parse_active_turn(fen_fields[1])?;
         let mut castle_flags = CastleFlags::parse_castle_flags(fen_fields[2]);
         let en_passant_target_square = parse_en_passant_target_square(fen_fields[3])?;

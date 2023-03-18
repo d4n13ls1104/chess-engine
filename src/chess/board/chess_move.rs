@@ -1,4 +1,9 @@
-use super::{Position, Piece, Board, PieceKind};
+use super::{
+    Position,
+    piece::{Piece, PieceKind},
+    Board,
+    PieceKind
+};
 
 #[derive(Debug, Copy, Clone)]
 pub enum Move {
@@ -51,11 +56,16 @@ impl Move {
 
             Self::PieceMove { origin_square, target_square, origin_piece, target_piece } => {
                 let mut str = String::new();
-
                 let piece_char = origin_piece.to_char().to_uppercase().to_string();
+
                 let origin_file = (origin_square.1 as u8 + 97) as char;
 
-                let target_rank = (8 - target_square.0).to_string().chars().next().unwrap();
+                let target_rank = (8 - target_square.0)
+                    .to_string()
+                    .chars()
+                    .next()
+                    .unwrap();
+
                 let target_file = (target_square.1 as u8 + 97) as char;
 
                 let rank_offset = target_square.0.abs_diff(origin_square.0);
@@ -78,7 +88,7 @@ impl Move {
                 }
 
                 if target_piece.is_some() {
-                    str.push_str(&piece_char);
+                    str.push(piece_char);
                     str.push('x');
                     str.push(target_file);
                     str.push(target_rank);
@@ -86,7 +96,7 @@ impl Move {
                     return str;
                 }
 
-                str.push_str(&piece_char);
+                str.push(piece_char);
                 str.push(target_file);
                 str.push(target_rank);
 

@@ -1,10 +1,8 @@
+use std::fmt;
 use super::{
     piece::{Piece, Color},
     Position
 };
-
-use std::fmt;
-use std::error::Error;
 
 pub const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -43,7 +41,7 @@ impl CastleFlags {
 }
 
 pub fn parse_squares(ranks: &str) -> [[Option<Piece>; 8]; 8] {
-    let mut squares = [[None; 8]; 8];
+    let mut board_state = [[None; 8]; 8];
     let ranks: Vec<&str> = ranks.split('/').collect();
 
     for (r_index, rank) in ranks.iter().enumerate() {
@@ -58,7 +56,7 @@ pub fn parse_squares(ranks: &str) -> [[Option<Piece>; 8]; 8] {
             }
         }
     }
-    squares
+    board_state
 }
 
 pub fn parse_en_passant_target_square(en_passant_target_square: &str) -> Result<Option<Position>, ParseFenError> {
@@ -67,14 +65,16 @@ pub fn parse_en_passant_target_square(en_passant_target_square: &str) -> Result<
         let file = en_passant_target_square.chars().next();
 
         let (rank, file) = match (rank, file) {
-            (Some(rank), Some(file)) => (rank, file),
+            (Some(rank), Some(file)) => (rank as usize, file as usize),
             _ => { return Err(ParseFenError::ParseEnPassantSquare(en_passant_target_square.to_string())); }
         };
 
-        let rank = 7 - (rank as usize - 49);
-        let file = file as usize - 97;
+        let rank = 7 - (rank - 49);
+        let file = file - 97;
 
-        return Ok(Some((rank, file)));
+        return Ok(
+            Some((rank, file))
+        );
     }
     Ok(None)
 }
@@ -112,4 +112,4 @@ impl fmt::Display for ParseFenError {
     }
 }
 
-impl Error for ParseFenError {}
+impl std::error::Error for ParseFenError {}
