@@ -19,14 +19,14 @@ pub enum Move {
 
 impl Move { 
     pub fn from_lan(board: &Board, lan: &str) -> Result<Self, MoveError> {
-        if lan.len() != 4 {
-            return Err(MoveError::MalformedLANString(lan.to_string()));
-        }
-
         match lan.to_uppercase().as_str() {
             "O-O" => { return Ok(Self::CastleKingside); },
             "O-O-O" => { return Ok(Self::CastleQueenside); }
             _ => ()
+        }
+
+        if lan.len() != 4 {
+            return Err(MoveError::MalformedLANString(lan.to_string()));
         }
 
         let (origin_square, target_square) = lan.split_at(2);
