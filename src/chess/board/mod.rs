@@ -404,17 +404,8 @@ impl Board {
     }
 
     pub fn is_legal_move(&self, m: Move) -> bool {
-        let has_moved_king = self.history.iter().any(|&m| {
-            match m {
-                Move::PieceMove { origin_piece, .. } => !(origin_piece.piece_kind == PieceKind::King && origin_piece.color == self.active_turn),
-                _ => false
-            }
-        });
-
         match m {
             Move::CastleKingside => {
-                if !has_moved_king { return false; }
-
                 match self.active_turn {
                     Color::White => {
                         if !self.castle_flags.white_kingside || !self.is_straight_clear(WHITE_KING_POS, WHITE_KINGSIDE_ROOK_POS) {
@@ -431,8 +422,6 @@ impl Board {
             },
 
             Move::CastleQueenside => {
-                if !has_moved_king { return false; }
-
                 match self.active_turn {
                     Color::White => {
                         if !self.castle_flags.white_queenside || !self.is_straight_clear(WHITE_KING_POS, WHITE_QUEENSIDE_ROOK_POS) {
