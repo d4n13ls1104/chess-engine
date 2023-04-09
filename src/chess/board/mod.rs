@@ -1,29 +1,29 @@
+use image::{imageops, Rgba, RgbaImage};
 use std::env;
-use image::{RgbaImage, Rgba, imageops};
 
 use self::chess_move::Move;
 use self::chess_move::MoveError;
 
-pub use self::piece::*;
 pub use self::fen::*;
+pub use self::piece::*;
 
-pub mod piece;
-pub mod fen;
 pub mod chess_move;
+pub mod fen;
+pub mod piece;
 
 const BOARD_SIZE: usize = 8;
 const IMAGE_SIZE: u32 = 512;
 
-const BOARD_FOREGROUND_COLOR: Rgba<u8> = Rgba([181, 136, 99, 255]);
-const BOARD_BACKGROUND_COLOR: Rgba<u8> = Rgba([240, 217, 181, 255]);
+const WHITE_KING_ORIGIN: Position = (7, 4);
+const BLACK_KING_ORIGIN: Position = (0, 4);
 
-const WHITE_KING_POS: Position = (7, 4);
-const BLACK_KING_POS: Position = (0, 4);
+const WHITE_KINGSIDE_ROOK_ORIGIN: Position = (7, 7);
+const WHITE_QUEENSIDE_ROOK_ORIGIN: Position = (7, 0);
+const BLACK_KINGSIDE_ROOK_ORIGIN: Position = (0, 7);
+const BLACK_QUEENSIDE_ROOK_ORIGIN: Position = (0, 0);
 
-const WHITE_KINGSIDE_ROOK_POS: Position = (7, 7);
-const BLACK_KINGSIDE_ROOK_POS: Position = (0, 7);
-const WHITE_QUEENSIDE_ROOK_POS: Position = (7, 0);
-const BLACK_QUEENSIDE_ROOK_POS: Position = (0, 0);
+const BOARD_FOREGROUND_COLOR: Rgba<u8> = Rgba([181, 136, 99, u8::MAX]);
+const BOARD_BACKGROUND_COLOR: Rgba<u8> = Rgba([240, 217, 181, u8::MAX]);
 
 pub type Position = (usize, usize);
 
@@ -32,7 +32,7 @@ pub enum GameStatus {
     WhiteWin,
     BlackWin,
     Draw,
-    Ongoing
+    Ongoing,
 }
 
 #[derive(Clone)]
@@ -40,7 +40,7 @@ pub struct Board {
     pub state: [[Option<Piece>; BOARD_SIZE]; BOARD_SIZE],
     pub active_turn: Color,
     pub castle_flags: CastleFlags,
-    pub en_passant_target_square: Option<Position>,
+    pub en_passant_square: Option<Position>,
     pub halfmove_clock: u8,
     pub fullmove_number: u16,
     pub history: Vec<Move>,
@@ -58,11 +58,13 @@ impl Board {
 
         for r_index in 0..BOARD_SIZE {
             for f_index in 0..BOARD_SIZE {
-                let color = if (r_index + f_index) % 2 == 0 { 
+                let color = if (r_index + f_index) % 2 == 0 {
                     BOARD_BACKGROUND_COLOR
-                } else { BOARD_FOREGROUND_COLOR };
+                } else {
+                    BOARD_FOREGROUND_COLOR
+                };
 
-                let square_size = IMAGE_SIZE / 8;
+                let square_size = IMAGE_SIZE / BOARD_SIZE as u32;
 
                 let start_x = f_index as u32 * square_size;
                 let start_y = r_index as u32 * square_size;
@@ -73,18 +75,22 @@ impl Board {
                 for x in start_x..end_x {
                     for y in start_y..end_y {
                         image.put_pixel(x, y, color);
-                    } 
+                    }
                 }
 
                 if let Some(piece) = self.state[r_index][f_index] {
                     let mut dir = match env::current_exe() {
                         Ok(path) => path,
-                        Err(e) => panic!("Failed to get program directory: {}", e)
+                        Err(e) => panic!("Failed to get program directory: {}", e),
                     };
 
-
-                    let color_flag = if piece.color == Color::White { 'w' } else { 'b' };
-                    let file_name = format!("{}_{:?}.png", color_flag, piece.piece_kind).to_lowercase();
+                    let color_flag = if piece.color == Color::White {
+                        'w'
+                    } else {
+                        'b'
+                    };
+                    let file_name =
+                        format!("{}_{:?}.png", color_flag, piece.piece_kind).to_lowercase();
 
                     dir.pop();
                     dir.push("textures");
@@ -104,151 +110,65 @@ impl Board {
     pub fn get_game_status(&self) -> GameStatus {
         let legal_moves = self.get_legal_moves();
 
+        let opponent_attacks = match self.active_turn {
+            Color::White => self.get_attacks_for_side(Color::Black),
+            Color::Black => self.get_attacks_for_side(Color::White),
+        };
+
         if legal_moves.is_empty() {
-            if self.halfmove_clock >= 100 { return GameStatus::Draw; }
+            if self.halfmove_clock >= 100 {
+                return GameStatus::Draw;
+            }
 
             match self.active_turn {
-                Color::White if self.is_square_attacked(self.white_king_position.unwrap()) => GameStatus::BlackWin,
-                Color::Black if self.is_square_attacked(self.black_king_position.unwrap()) => GameStatus::WhiteWin,
-                _ => GameStatus::Draw
+                Color::White => {
+                    let king_pos = self.white_king_position.unwrap();
+
+                    if opponent_attacks.iter().any(|&pos| pos == king_pos) {
+                        return GameStatus::BlackWin;
+                    }
+                    GameStatus::Draw
+                }
+
+                Color::Black => {
+                    let king_pos = self.black_king_position.unwrap();
+
+                    if opponent_attacks.iter().any(|&pos| pos == king_pos) {
+                        return GameStatus::WhiteWin;
+                    }
+                    GameStatus::Draw
+                }
+
+                _ => GameStatus::Draw,
             }
-
-        } else { GameStatus::Ongoing }
-    }
-
-    pub fn castle_queenside(&mut self) {
-        match self.active_turn {
-            Color::White => {
-                let king = self.state[WHITE_KING_POS.0][WHITE_KING_POS.1].take();
-                let rook = self.state[WHITE_QUEENSIDE_ROOK_POS.0][WHITE_QUEENSIDE_ROOK_POS.1].take();
-
-                self.state[WHITE_KING_POS.0][WHITE_KING_POS.1 - 2] = king;
-                self.state[WHITE_QUEENSIDE_ROOK_POS.0][WHITE_QUEENSIDE_ROOK_POS.1 + 3] = rook;
-
-                self.castle_flags.white_kingside = false;
-                self.castle_flags.white_queenside = false;
-                self.active_turn = Color::Black;
-            },
-
-            Color::Black => {
-                let king = self.state[BLACK_KING_POS.0][BLACK_KING_POS.1].take();
-                let rook = self.state[BLACK_QUEENSIDE_ROOK_POS.0][BLACK_QUEENSIDE_ROOK_POS.1].take();
-
-                self.state[BLACK_KING_POS.0][BLACK_KING_POS.1 - 2] = king;
-                self.state[BLACK_QUEENSIDE_ROOK_POS.0][BLACK_QUEENSIDE_ROOK_POS.1 + 3] = rook;
-
-                self.castle_flags.black_kingside = false;
-                self.castle_flags.black_queenside = false;
-                self.active_turn = Color::White;
-            }
+        } else {
+            GameStatus::Ongoing
         }
     }
 
-    pub fn castle_kingside(&mut self) {
-        match self.active_turn {
-            Color::White => {
-                let king = self.state[WHITE_KING_POS.0][WHITE_KING_POS.1].take();
-                let rook = self.state[WHITE_KINGSIDE_ROOK_POS.0][WHITE_KINGSIDE_ROOK_POS.1].take();
-
-                self.state[WHITE_KING_POS.0][WHITE_KING_POS.1 + 2] = king;
-                self.state[WHITE_KINGSIDE_ROOK_POS.0][WHITE_KINGSIDE_ROOK_POS.1 - 2] = rook;
-
-                self.castle_flags.white_kingside = false;
-                self.castle_flags.white_queenside = false;
-                self.active_turn = Color::Black;
-            },
-
-            Color::Black => {
-                let king = self.state[BLACK_KING_POS.0][BLACK_KING_POS.1].take();
-                let rook = self.state[BLACK_KINGSIDE_ROOK_POS.0][BLACK_KINGSIDE_ROOK_POS.1].take();
-
-                self.state[BLACK_KING_POS.0][BLACK_KING_POS.1 + 2] = king;
-                self.state[BLACK_KINGSIDE_ROOK_POS.0][BLACK_KINGSIDE_ROOK_POS.1 - 2] = rook;
-
-                self.castle_flags.black_kingside = false;
-                self.castle_flags.black_queenside = false;
-                self.active_turn = Color::White;
-            }
-        }
-    }
-
-    pub fn get_legal_moves(&self) -> Vec<Move> {
-        let mut legal_moves = Vec::new();
+    fn get_attacks_for_side(&self, side: Color) -> Vec<Position> {
+        let mut positions = Vec::new();
 
         for r_index in 0..8 {
             for f_index in 0..8 {
-                match self.active_turn {
-                    Color::White => {
-                        if self.castle_flags.white_kingside && self.is_legal_move(Move::CastleKingside) {
-                            legal_moves.push(Move::CastleKingside);
-                        }
+                if let Some(piece) = self.state[r_index][f_index] {
+                    if piece.color == side {
+                        let mut piece_attacks =
+                            piece.get_attack_positions((r_index, f_index), &self);
 
-                        if self.castle_flags.white_queenside && self.is_legal_move(Move::CastleQueenside) {
-                            legal_moves.push(Move::CastleQueenside);
-                        }
-                    },
-
-                    Color::Black => {
-                        if self.castle_flags.black_kingside && self.is_legal_move(Move::CastleKingside) {
-                            legal_moves.push(Move::CastleKingside);
-                        }
-
-                        if self.castle_flags.black_queenside && self.is_legal_move(Move::CastleQueenside) {
-                            legal_moves.push(Move::CastleQueenside);
-                        }
-                    }
-                }
-
-                if let Some(origin_piece) = self.state[r_index][f_index] {
-                    if origin_piece.color == self.active_turn {
-                        let piece_direction_offsets = origin_piece.get_direction_offsets();
-
-                            match origin_piece.piece_kind {
-                                PieceKind::Queen | PieceKind::Rook | PieceKind::Bishop => {
-                                    for direction in piece_direction_offsets.iter() {
-                                        for target_square in self.get_piece_path((r_index, f_index), *direction).iter() {
-                                            let m = Move::PieceMove {
-                                                origin_square: (r_index, f_index),
-                                                target_square: (target_square.0, target_square.1),
-                                                origin_piece,
-                                                target_piece: self.state[target_square.0][target_square.1]
-                                            };
-
-                                            if self.is_legal_move(m) {
-                                                legal_moves.push(m);
-                                            }
-                                        }
-                                    }
-                                },
-
-                                _ => {
-                                    for direction in piece_direction_offsets.iter() {
-                                        let target_square = ((r_index as isize + direction.0) as usize, (f_index as isize + direction.1) as usize);
-
-                                        if target_square.0 < BOARD_SIZE && target_square.1 < BOARD_SIZE {
-                                            let m = Move::PieceMove {
-                                                origin_square: (r_index, f_index),
-                                                target_square,
-                                                origin_piece,
-                                                target_piece: self.state[target_square.0][target_square.1]
-                                            };
-
-                                            if self.is_legal_move(m) {
-                                                legal_moves.push(m);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        positions.append(&mut piece_attacks);
                     }
                 }
             }
-        legal_moves
+        }
+
+        positions
     }
 
     pub fn move_piece(&mut self, m: Move) -> Result<(), MoveError> {
         if !self.is_legal_move(m) {
+            println!("Illegal move: {:?}", m);
+            println!();
             return Err(MoveError::IllegalMoveError);
         }
 
@@ -261,36 +181,43 @@ impl Board {
             Move::CastleKingside => self.castle_kingside(),
             Move::CastleQueenside => self.castle_queenside(),
 
-            Move::PieceMove { origin_square, target_square, origin_piece, ..} => {
+            Move::PieceMove {
+                origin_square,
+                target_square,
+                origin_piece,
+                ..
+            } => {
                 let (origin_rank, origin_file) = origin_square;
                 let (target_rank, target_file) = target_square;
 
                 if origin_piece.piece_kind == PieceKind::Pawn {
-                    let rank_offset = target_rank.abs_diff(origin_rank);
+                    let is_double_push = target_rank.abs_diff(origin_rank) == 2;
 
-                    if self.state[target_rank][target_file].is_some() || rank_offset < 2 { self.en_passant_target_square = None; }
-
-                    if rank_offset == 2 {
-                        self.en_passant_target_square = match self.active_turn {
+                    if is_double_push {
+                        self.en_passant_square = match self.active_turn {
                             Color::White => Some((target_rank + 1, target_file)),
-                            Color::Black => Some((target_rank - 1, target_file))
+                            Color::Black => Some((target_rank - 1, target_file)),
                         }
                     }
 
                     self.halfmove_clock = 0;
-                } else{ self.en_passant_target_square = None }
+                } else {
+                    self.en_passant_square = None;
+                }
 
-                if self.state[target_rank][target_file].is_some() { self.halfmove_clock = 0; }
+                if self.state[target_rank][target_file].is_some() {
+                    self.halfmove_clock = 0;
+                }
 
                 let piece = self.state[origin_rank][origin_file].take();
 
                 self.state[target_rank][target_file] = piece;
 
                 if origin_piece.piece_kind == PieceKind::Pawn {
-                    if target_rank == 7 {
-                        self.state[target_rank][target_file] = Some(Piece::from_char('q'));
-                    } else if target_rank == 0 {
-                        self.state[target_rank][target_file] = Some(Piece::from_char('Q'));
+                    match target_rank {
+                        7 => self.state[target_rank][target_file] = Some(Piece::from_char('q')),
+                        0 => self.state[target_rank][target_file] = Some(Piece::from_char('Q')),
+                        _ => (),
                     }
                 }
 
@@ -301,7 +228,7 @@ impl Board {
                             self.castle_flags.white_queenside = false;
 
                             self.white_king_position = Some(target_square);
-                        },
+                        }
 
                         Color::Black => {
                             self.castle_flags.black_kingside = false;
@@ -311,21 +238,29 @@ impl Board {
                         }
                     }
                 }
-                
+
                 if origin_piece.piece_kind == PieceKind::Rook {
                     match origin_square {
-                        WHITE_KINGSIDE_ROOK_POS => self.castle_flags.white_kingside = false,
-                        WHITE_QUEENSIDE_ROOK_POS => self.castle_flags.white_queenside = false,
+                        WHITE_KINGSIDE_ROOK_ORIGIN if origin_piece.color == Color::White => {
+                            self.castle_flags.white_kingside = false
+                        }
+                        WHITE_QUEENSIDE_ROOK_ORIGIN if origin_piece.color == Color::White => {
+                            self.castle_flags.white_queenside = false
+                        }
 
-                        BLACK_KINGSIDE_ROOK_POS => self.castle_flags.black_kingside = false,
-                        BLACK_QUEENSIDE_ROOK_POS => self.castle_flags.black_queenside = false,
-                        _ => ()
+                        BLACK_KINGSIDE_ROOK_ORIGIN if origin_piece.color == Color::Black => {
+                            self.castle_flags.black_kingside = false
+                        }
+                        BLACK_QUEENSIDE_ROOK_ORIGIN if origin_piece.color == Color::Black => {
+                            self.castle_flags.black_queenside = false
+                        }
+                        _ => (),
                     }
                 }
 
                 self.active_turn = match self.active_turn {
                     Color::White => Color::Black,
-                    Color::Black => Color::White
+                    Color::Black => Color::White,
                 };
             }
         }
@@ -335,117 +270,226 @@ impl Board {
         Ok(())
     }
 
-    pub fn is_square_attacked(&self, position: Position) -> bool {
-        let (px, py) = position;
+    pub fn get_legal_moves(&self) -> Vec<Move> {
+        let mut legal_moves = Vec::new();
 
-        for (r_index, rank) in self.state.iter().enumerate() {
-            for (f_index, piece) in rank.iter().enumerate() {
-                    if let Some(p) = piece {
-                        if p.color == self.active_turn { continue; }
-                        match p.piece_kind {
-                            PieceKind::Pawn => {
-                                if r_index > 0 && f_index > 0 {
-                                    let r_offset = r_index as i32 - px as i32;
-                                    let f_offset = f_index as i32 - py as i32;
+        if self.is_legal_move(Move::CastleKingside) {
+            legal_moves.push(Move::CastleKingside);
+        }
 
-                                    if (p.color == Color::White && px > r_index) ||
-                                       (p.color == Color::Black && px < r_index) {
-                                           return false;
+        if self.is_legal_move(Move::CastleQueenside) {
+            legal_moves.push(Move::CastleQueenside);
+        }
+
+        for r_index in 0..8 {
+            for f_index in 0..8 {
+                if let Some(piece) = self.state[r_index][f_index] {
+                    if piece.color == self.active_turn {
+                        let piece_attacks = piece.get_attack_positions((r_index, f_index), &self);
+
+                        for pos in piece_attacks {
+                            if let Some(target_piece) = self.state[pos.0][pos.1] {
+                                if target_piece.color != self.active_turn {
+                                    let attack_move = Move::PieceMove {
+                                        origin_square: (r_index, f_index),
+                                        target_square: pos,
+                                        origin_piece: piece,
+                                        target_piece: Some(target_piece),
+                                    };
+
+                                    if self.is_legal_move(attack_move) {
+                                        legal_moves.push(attack_move);
                                     }
+                                }
+                            } else {
+                                if piece.piece_kind != PieceKind::Pawn {
+                                    let m = Move::PieceMove {
+                                        origin_square: (r_index, f_index),
+                                        target_square: pos,
+                                        origin_piece: piece,
+                                        target_piece: None,
+                                    };
 
-                                    if (r_offset.abs() == 1) && (f_offset.abs() == 1) { return true; }
-                               }
-                            },
+                                    if self.is_legal_move(m) {
+                                        legal_moves.push(m);
+                                    }
+                                }
+                            }
+                        }
 
-                            PieceKind::Knight => {
-                                if r_index > 0 && f_index > 0 {
-                                    let r_offset = r_index as i32 - px as i32;
-                                    let f_offset = f_index as i32 - py as i32;
+                        if piece.piece_kind == PieceKind::Pawn {
+                            match piece.color {
+                                Color::White => {
+                                    if r_index == 6 {
+                                        let path_is_clear = self.state[r_index - 1][f_index]
+                                            .is_none()
+                                            && self.state[r_index - 2][f_index].is_none();
 
-                                    if ((r_offset.abs() == 2) && (f_offset.abs() == 1)) ||
-                                        ((r_offset.abs() == 1) && (f_offset.abs() == 2)) {
-                                            return true;
+                                        if path_is_clear {
+                                            let double_pawn_push = Move::PieceMove {
+                                                origin_square: (r_index, f_index),
+                                                target_square: (r_index - 2, f_index),
+                                                origin_piece: piece,
+                                                target_piece: None,
+                                            };
+
+                                            if self.is_legal_move(double_pawn_push) {
+                                                legal_moves.push(double_pawn_push);
+                                            }
                                         }
                                     }
-                            },
 
-                            PieceKind::Bishop => {
-                                if self.is_diagonal_clear((r_index, f_index), position) {
-                                    return true;
+                                    if self.state[r_index - 1][f_index].is_none() {
+                                        let single_pawn_push = Move::PieceMove {
+                                            origin_square: (r_index, f_index),
+                                            target_square: (r_index - 1, f_index),
+                                            origin_piece: piece,
+                                            target_piece: None,
+                                        };
+
+                                        if self.is_legal_move(single_pawn_push) {
+                                            legal_moves.push(single_pawn_push);
+                                        }
+                                    }
                                 }
-                            },
 
-                            PieceKind::Rook => {
-                                if self.is_straight_clear((r_index, f_index), position) {
-                                    return true;
-                                }
-                            },
+                                Color::Black => {
+                                    if r_index == 1 {
+                                        let path_is_clear = self.state[r_index + 1][f_index]
+                                            .is_none()
+                                            && self.state[r_index + 2][f_index].is_none();
 
-                            PieceKind::Queen => {
-                                if self.is_diagonal_clear((r_index, f_index), position) ||
-                                    self.is_straight_clear((r_index, f_index), position) {
-                                        return true;
-                                }
-                            },
+                                        if path_is_clear {
+                                            let double_pawn_push = Move::PieceMove {
+                                                origin_square: (r_index, f_index),
+                                                target_square: (r_index + 2, f_index),
+                                                origin_piece: piece,
+                                                target_piece: None,
+                                            };
 
-                            PieceKind::King => {
-                                let r_offset = (r_index as i32 - px  as i32).abs();
-                                let f_offset = (f_index as i32 - py as i32).abs();
+                                            if self.is_legal_move(double_pawn_push) {
+                                                legal_moves.push(double_pawn_push);
+                                            }
+                                        }
+                                    }
 
-                                if (r_offset <= 1) && (f_offset <= 1) {
-                                    return true;
+                                    if self.state[r_index + 1][f_index].is_none() {
+                                        let single_pawn_push = Move::PieceMove {
+                                            origin_square: (r_index, f_index),
+                                            target_square: (r_index + 1, f_index),
+                                            origin_piece: piece,
+                                            target_piece: None,
+                                        };
+
+                                        if self.is_legal_move(single_pawn_push) {
+                                            legal_moves.push(single_pawn_push);
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        false
+        }
+        legal_moves
     }
 
     pub fn is_legal_move(&self, m: Move) -> bool {
+        let has_moved_king = self.history.iter().any(|&m| match m {
+            Move::PieceMove { origin_piece, .. } => {
+                (origin_piece.piece_kind == PieceKind::King
+                    && origin_piece.color == self.active_turn)
+            }
+            _ => false,
+        });
+
         match m {
             Move::CastleKingside => {
-                match self.active_turn {
-                    Color::White => {
-                        if !self.castle_flags.white_kingside || !self.is_straight_clear(WHITE_KING_POS, WHITE_KINGSIDE_ROOK_POS) {
-                            return false;
-                        }
-                    },
-
-                    Color::Black => {
-                        if !self.castle_flags.black_kingside || !self.is_straight_clear(BLACK_KING_POS, BLACK_KINGSIDE_ROOK_POS) {
-                            return false;
-                        }
-                    },
+                if has_moved_king {
+                    return false;
                 }
-            },
 
-            Move::CastleQueenside => {
-                match self.active_turn {
-                    Color::White => {
-                        if !self.castle_flags.white_queenside || !self.is_straight_clear(WHITE_KING_POS, WHITE_QUEENSIDE_ROOK_POS) {
-                            return false;
-                        }
-                    },
+                if self.active_turn == Color::White {
+                    if !self.castle_flags.white_kingside {
+                        return false;
+                    }
 
-                    Color::Black => {
-                        if !self.castle_flags.black_queenside || !self.is_straight_clear(BLACK_KING_POS, BLACK_QUEENSIDE_ROOK_POS) {
-                            return false;
-                        }
+                    let sq_1 = self.state[WHITE_KING_ORIGIN.0][WHITE_KING_ORIGIN.1 + 1];
+                    let sq_2 = self.state[WHITE_KING_ORIGIN.0][WHITE_KING_ORIGIN.1 + 2];
+
+                    let path_is_clear = sq_1.is_none() && sq_2.is_none();
+
+                    if !path_is_clear {
+                        return false;
+                    }
+                } else {
+                    if !self.castle_flags.black_kingside {
+                        return false;
+                    }
+
+                    let sq_1 = self.state[BLACK_KING_ORIGIN.0][BLACK_KING_ORIGIN.1 + 1];
+                    let sq_2 = self.state[BLACK_KING_ORIGIN.0][BLACK_KING_ORIGIN.1 + 2];
+
+                    let path_is_clear = sq_1.is_none() && sq_2.is_none();
+
+                    if !path_is_clear {
+                        return false;
                     }
                 }
-            },
+            }
 
-            Move::PieceMove { origin_square, target_square, ..} => {
+            Move::CastleQueenside => {
+                if has_moved_king {
+                    return false;
+                }
+
+                if self.active_turn == Color::White {
+                    if !self.castle_flags.white_queenside {
+                        return false;
+                    }
+
+                    let sq_1 = self.state[WHITE_KING_ORIGIN.0][WHITE_KING_ORIGIN.1 - 1];
+                    let sq_2 = self.state[WHITE_KING_ORIGIN.0][WHITE_KING_ORIGIN.1 - 2];
+                    let sq_3 = self.state[WHITE_KING_ORIGIN.0][WHITE_KING_ORIGIN.1 - 3];
+
+                    let path_is_clear = sq_1.is_none() && sq_2.is_none() && sq_3.is_none();
+
+                    if !path_is_clear {
+                        return false;
+                    }
+                } else {
+                    if !self.castle_flags.black_queenside {
+                        return false;
+                    }
+
+                    let sq_1 = self.state[BLACK_KING_ORIGIN.0][BLACK_KING_ORIGIN.1 - 1];
+                    let sq_2 = self.state[BLACK_KING_ORIGIN.0][BLACK_KING_ORIGIN.1 - 2];
+                    let sq_3 = self.state[BLACK_KING_ORIGIN.0][BLACK_KING_ORIGIN.1 - 3];
+
+                    let path_is_clear = sq_1.is_none() && sq_2.is_none() && sq_3.is_none();
+
+                    if !path_is_clear {
+                        return false;
+                    }
+                }
+            }
+
+            Move::PieceMove {
+                origin_square,
+                target_square,
+                ..
+            } => {
                 let (origin_rank, origin_file) = origin_square;
                 let (target_rank, target_file) = target_square;
 
-                match self.state[origin_rank][origin_file] {
-                    Some(piece) if piece.color != self.active_turn => { return false; },
-                    None => { return false; }
-                    _ => ()
-                };
+                if let Some(piece) = self.state[origin_rank][origin_file] {
+                    if piece.color != self.active_turn {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
 
                 if let Some(piece) = self.state[target_rank][target_file] {
                     if piece.color == self.active_turn || piece.piece_kind == PieceKind::King {
@@ -453,198 +497,127 @@ impl Board {
                     }
                 }
 
-                let piece = match self.state[origin_rank][origin_file] {
-                    Some(piece) => piece,
-                    _ => { return false; }
+                let opponent_color = match self.active_turn {
+                    Color::White => Color::Black,
+                    Color::Black => Color::White,
                 };
-
-                let piece_direction_offsets = piece.get_direction_offsets();
 
                 match self.active_turn {
                     Color::White => {
-                        let king_pos = self.white_king_position.unwrap();
                         let mut board_copy = self.clone();
+                        let king_pos = self.white_king_position.unwrap();
 
-                        let piece = match board_copy.state[origin_rank][origin_file].take() {
-                            Some(piece) => piece,
-                            _ => { return false; }
-                        };
+                        let piece = board_copy.state[origin_rank][origin_file].take();
 
-                        board_copy.state[target_rank][target_file] = Some(piece);
+                        board_copy.state[target_rank][target_file] = piece;
 
-                        if piece.piece_kind == PieceKind::King {
-                            if board_copy.is_square_attacked((target_rank, target_file)) {
+                        let opponent_attacks = board_copy.get_attacks_for_side(opponent_color);
+
+                        if piece.unwrap().piece_kind == PieceKind::King {
+                            let king_target_position_attacked =
+                                opponent_attacks.iter().any(|&pos| pos == target_square);
+
+                            if king_target_position_attacked {
                                 return false;
-                            } else { return true; }
-                        }
+                            }
+                        } else {
+                            let king_position_attacked =
+                                opponent_attacks.iter().any(|&pos| pos == king_pos);
 
-                        if board_copy.is_square_attacked(king_pos) { return false; }
-                   },
+                            if king_position_attacked {
+                                return false;
+                            }
+                        }
+                    }
 
                     Color::Black => {
-                        let king_pos = self.black_king_position.unwrap();
                         let mut board_copy = self.clone();
+                        let king_pos = self.black_king_position.unwrap();
 
-                        let piece = match board_copy.state[origin_rank][origin_file].take() {
-                            Some(piece) => piece,
-                            _ => { return false; }
-                        };
+                        let piece = board_copy.state[origin_rank][origin_file].take();
 
-                        if piece.piece_kind == PieceKind::King {
-                            if board_copy.is_square_attacked((target_rank, target_file)) {
+                        board_copy.state[target_rank][target_file] = piece;
+
+                        let opponent_attacks = board_copy.get_attacks_for_side(opponent_color);
+
+                        if piece.unwrap().piece_kind == PieceKind::King {
+                            let king_target_position_attacked =
+                                opponent_attacks.iter().any(|&pos| pos == target_square);
+
+                            if king_target_position_attacked {
                                 return false;
-                            } else { return true; }
-                        }
-
-                        board_copy.state[target_rank][target_file] = Some(piece);
-
-                        if board_copy.is_square_attacked(king_pos) { return false; }
-                    }
-                }
-
-                match piece.piece_kind {
-                    PieceKind::Pawn => {
-                        let rank_offset = target_rank.abs_diff(origin_rank);
-                        let file_offset = target_file.abs_diff(origin_file);
-
-                        if (piece.color == Color::White && target_rank > origin_rank) ||
-                        (piece.color == Color::Black && target_rank < origin_rank) {
-                            return false;
-                        }
-
-                        if rank_offset == 1 && file_offset == 1 {
-                            if let Some(pos) = self.en_passant_target_square {
-                                if (target_rank, target_file) == pos {
-                                    return true;
-                                }
                             }
+                        } else {
+                            let king_position_attacked =
+                                opponent_attacks.iter().any(|&pos| pos == king_pos);
 
-                            return self.state[target_rank][target_file].is_some();
-                        }
-
-                        if self.state[target_rank][target_file].is_some() { return false; }
-
-                        if rank_offset == 2 {
-                            if origin_rank == 6 || origin_rank == 1 {
-                                return match piece.color {
-                                    Color::White if self.state[target_rank + 1][target_file].is_some() => false,
-                                    Color::Black if self.state[target_rank - 1][target_file].is_some() => false,
-
-                                    _ => true
-                                };
-                            } else { return false; }
-                        }
-                    },
-
-                    PieceKind::Knight => {
-                        let rank_offset = if target_rank > origin_rank { target_rank - origin_rank } else { origin_rank - target_rank } as isize;
-                        let file_offset = if target_file > origin_file { target_file - origin_file } else { origin_file - target_file } as isize;
-
-                        if !piece_direction_offsets.iter().any(|&d| d == (rank_offset, file_offset)) {
-                            return false;
-                        }
-                    },
-
-                    PieceKind::King => {
-                        let rank_offset = target_rank.abs_diff(origin_rank) as isize;
-                        let file_offset = target_rank.abs_diff(origin_file) as isize;
-
-                        if !piece_direction_offsets.iter().any(|&d| d == (rank_offset, file_offset)) { return false; }
-                    },
-
-                    PieceKind::Bishop => {
-                        if !self.is_diagonal_clear(origin_square, target_square) { return false; }
-                    },
-
-                    PieceKind::Rook => {
-                        if !self.is_straight_clear(origin_square, target_square) { return false; }
-                    },
-
-                    PieceKind::Queen => {
-                        if !self.is_diagonal_clear(origin_square, target_square) &&
-                            !self.is_straight_clear(origin_square, target_square) {
-                            return false;
+                            if king_position_attacked {
+                                return false;
+                            }
                         }
                     }
                 }
             }
         }
-
         true
     }
 
-    fn get_piece_path(&self, start: Position, direction: (isize, isize)) -> Vec<Position> {
-        let mut positions = Vec::new();
+    pub fn castle_kingside(&mut self) {
+        match self.active_turn {
+            Color::White => {
+                let king = self.state[WHITE_KING_ORIGIN.0][WHITE_KING_ORIGIN.1].take();
+                let rook =
+                    self.state[WHITE_KINGSIDE_ROOK_ORIGIN.0][WHITE_KINGSIDE_ROOK_ORIGIN.1].take();
 
-        let mut r_index = (start.0 as isize + direction.0) as usize;
-        let mut f_index = (start.1 as isize + direction.1) as usize;
+                self.state[WHITE_KING_ORIGIN.0][WHITE_KING_ORIGIN.1 + 2] = king;
+                self.state[WHITE_KINGSIDE_ROOK_ORIGIN.0][WHITE_KINGSIDE_ROOK_ORIGIN.1 - 2] = rook;
 
-        while (r_index < BOARD_SIZE) && (f_index < BOARD_SIZE) {
-            if let Some(piece) = self.state[r_index][f_index] {
-                if piece.color != self.active_turn {
-                    positions.push((r_index, f_index));
-                    return positions;
-                }
+                self.castle_flags.white_kingside = false;
+                self.castle_flags.white_queenside = false;
+                self.active_turn = Color::Black;
             }
+            Color::Black => {
+                let king = self.state[BLACK_KING_ORIGIN.0][BLACK_KING_ORIGIN.1].take();
+                let rook =
+                    self.state[BLACK_KINGSIDE_ROOK_ORIGIN.0][BLACK_KINGSIDE_ROOK_ORIGIN.1].take();
 
-            positions.push((r_index, f_index));
+                self.state[BLACK_KING_ORIGIN.0][BLACK_KING_ORIGIN.1 + 2] = king;
+                self.state[BLACK_KINGSIDE_ROOK_ORIGIN.0][BLACK_KINGSIDE_ROOK_ORIGIN.1 - 2] = rook;
 
-            r_index = (r_index as isize + direction.0) as usize;
-            f_index = (f_index as isize + direction.1) as usize;
+                self.castle_flags.black_kingside = false;
+                self.castle_flags.black_queenside = false;
+                self.active_turn = Color::White;
+            }
         }
-        positions
     }
 
-    fn is_diagonal_clear(&self, start: Position, end: Position) -> bool {
-        let (start_rank, start_file) = start;
-        let (end_rank, end_file) = end;
+    pub fn castle_queenside(&mut self) {
+        match self.active_turn {
+            Color::White => {
+                let king = self.state[WHITE_KING_ORIGIN.0][WHITE_KING_ORIGIN.1].take();
+                let rook =
+                    self.state[WHITE_QUEENSIDE_ROOK_ORIGIN.0][WHITE_QUEENSIDE_ROOK_ORIGIN.1].take();
 
-        let r_offset = (end_rank as i32 - start_rank as i32).abs();
-        let f_offset = (end_file as i32 - start_file as i32).abs();
+                self.state[WHITE_KING_ORIGIN.0][WHITE_KING_ORIGIN.1 - 2] = king;
+                self.state[WHITE_QUEENSIDE_ROOK_ORIGIN.0][WHITE_QUEENSIDE_ROOK_ORIGIN.1 + 3] = rook;
 
-        if r_offset != f_offset { return false; }
+                self.castle_flags.white_kingside = false;
+                self.castle_flags.white_queenside = false;
+                self.active_turn = Color::Black;
+            }
+            Color::Black => {
+                let king = self.state[BLACK_KING_ORIGIN.0][BLACK_KING_ORIGIN.1].take();
+                let rook =
+                    self.state[BLACK_QUEENSIDE_ROOK_ORIGIN.0][BLACK_QUEENSIDE_ROOK_ORIGIN.1].take();
 
-        let r_step = if end_rank > start_rank { 1 } else { -1 };
-        let f_step = if end_file > start_file { 1 } else { -1 };
+                self.state[BLACK_KING_ORIGIN.0][BLACK_KING_ORIGIN.1 - 2] = king;
+                self.state[BLACK_QUEENSIDE_ROOK_ORIGIN.0][BLACK_QUEENSIDE_ROOK_ORIGIN.1 + 3] = rook;
 
-        let mut r_index = (start_rank as i32 + r_step) as usize;
-        let mut f_index = (start_file as i32 + f_step) as usize;
-
-        while (r_index != end_rank && f_index != end_file) && !(r_index > BOARD_SIZE || f_index > BOARD_SIZE) {
-            if self.state[r_index][f_index].is_some() { return false; }
-
-            r_index = (r_index as i32 + r_step) as usize;
-            f_index = (f_index as i32 + f_step) as usize;
+                self.castle_flags.black_kingside = false;
+                self.castle_flags.black_queenside = false;
+                self.active_turn = Color::White;
+            }
         }
-
-        true
-    }
-
-    fn is_straight_clear(&self, start: Position, end: Position) -> bool {
-        let (start_rank, start_file) = start;
-        let (end_rank, end_file) = end;
-
-        if start_rank == end_rank {
-            let f_step = if end_file > start_file { 1 } else { -1 };
-            let mut f_index = (start_file as i32 + f_step) as usize;
-
-            while f_index != end_file && f_index < BOARD_SIZE {
-                if self.state[start_rank][f_index].is_some() { return false; }
-
-                f_index = (f_index as i32 + f_step) as usize;
-            }
-        } else if start_file == end_file {
-            let r_step = if end_rank > start_rank { 1 } else { -1 };
-            let mut r_index = (start_rank as i32 + r_step) as usize;
-
-            while r_index != end_rank && r_index < BOARD_SIZE {
-                if self.state[r_index][start_file].is_some() { return false; }
-
-                r_index = (r_index as i32 + r_step) as usize;
-            }
-        } else { return false; }
-
-        true
     }
 
     pub fn from_fen(fen: &str) -> Result<Self, ParseFenError> {
@@ -660,11 +633,11 @@ impl Board {
             fen_fields.push(field);
         }
 
-        let squares = parse_ranks(fen_fields[0]);
+        let ranks = parse_ranks(fen_fields[0]);
         let active_turn = parse_active_turn(fen_fields[1])?;
         let mut castle_flags = CastleFlags::parse_castle_flags(fen_fields[2]);
-        let en_passant_target_square = parse_en_passant_target_square(fen_fields[3])?;
-        let halfmove_clock  = fen_fields[4].parse::<u8>().unwrap_or(0);
+        let en_passant_square = parse_en_passant_target_square(fen_fields[3])?;
+        let halfmove_clock = fen_fields[4].parse::<u8>().unwrap_or(0);
         let fullmove_number = fen_fields[5].parse::<u16>().unwrap_or(0);
         let history: Vec<Move> = Vec::new();
 
@@ -675,42 +648,73 @@ impl Board {
         let mut black_kingside_rook_position: Option<Position> = None;
         let mut black_queenside_rook_position: Option<Position> = None;
 
-        for (r_index, rank) in squares.iter().enumerate() {
-            for (f_index, piece) in rank.iter().enumerate() {
-                if let Some(p) = piece {
-                    if p.piece_kind == PieceKind::King {
-                        if p.color == Color::White {
-                            white_king_position = Some((r_index, f_index));
-                        } else if p.color == Color::Black {
-                            black_king_position = Some((r_index, f_index));
+        for (r_index, rank) in ranks.iter().enumerate() {
+            for (f_index, square) in rank.iter().enumerate() {
+                if let Some(piece) = square {
+                    if piece.piece_kind == PieceKind::King {
+                        match piece.color {
+                            Color::White => white_king_position = Some((r_index, f_index)),
+                            Color::Black => black_king_position = Some((r_index, f_index)),
                         }
                     }
 
-                    if p.piece_kind == PieceKind::Rook {
-                        match p.color {
+                    if piece.piece_kind == PieceKind::Rook {
+                        match piece.color {
                             Color::White => match (r_index, f_index) {
-                                WHITE_KINGSIDE_ROOK_POS => white_kingside_rook_position = Some(WHITE_KINGSIDE_ROOK_POS),
-                                WHITE_QUEENSIDE_ROOK_POS => white_queenside_rook_position = Some(WHITE_QUEENSIDE_ROOK_POS),
-
-                                _ => {
-                                    castle_flags.white_kingside = false;
-                                    castle_flags.white_queenside = false;
+                                WHITE_KINGSIDE_ROOK_ORIGIN => {
+                                    white_kingside_rook_position = Some(WHITE_KINGSIDE_ROOK_ORIGIN)
                                 }
-                            }
+
+                                WHITE_QUEENSIDE_ROOK_ORIGIN => {
+                                    white_queenside_rook_position =
+                                        Some(WHITE_QUEENSIDE_ROOK_ORIGIN)
+                                }
+
+                                _ => (),
+                            },
 
                             Color::Black => match (r_index, f_index) {
-                                BLACK_KINGSIDE_ROOK_POS => black_kingside_rook_position = Some(BLACK_KINGSIDE_ROOK_POS),
-                                BLACK_QUEENSIDE_ROOK_POS => black_queenside_rook_position = Some(BLACK_QUEENSIDE_ROOK_POS),
-
-                                _ => {
-                                    castle_flags.black_kingside = false;
-                                    castle_flags.black_queenside = false;
+                                BLACK_KINGSIDE_ROOK_ORIGIN => {
+                                    black_kingside_rook_position = Some(BLACK_KINGSIDE_ROOK_ORIGIN)
                                 }
-                            }
+
+                                BLACK_QUEENSIDE_ROOK_ORIGIN => {
+                                    black_queenside_rook_position =
+                                        Some(BLACK_QUEENSIDE_ROOK_ORIGIN)
+                                }
+
+                                _ => (),
+                            },
                         }
                     }
                 }
             }
+        }
+
+        if white_king_position.is_none() {
+            castle_flags.white_kingside = false;
+            castle_flags.white_queenside = false;
+        }
+
+        if black_king_position.is_none() {
+            castle_flags.black_kingside = false;
+            castle_flags.black_queenside = false;
+        }
+
+        if white_kingside_rook_position.is_none() {
+            castle_flags.white_kingside = false;
+        }
+
+        if white_queenside_rook_position.is_none() {
+            castle_flags.white_queenside = false;
+        }
+
+        if black_kingside_rook_position.is_none() {
+            castle_flags.black_kingside = false;
+        }
+
+        if black_queenside_rook_position.is_none() {
+            castle_flags.black_queenside = false;
         }
 
         if white_king_position.is_none() || black_king_position.is_none() {
@@ -718,10 +722,10 @@ impl Board {
         }
 
         Ok(Self {
-            state: squares,
+            state: ranks,
             active_turn,
             castle_flags,
-            en_passant_target_square,
+            en_passant_square,
             halfmove_clock,
             fullmove_number,
             history,
@@ -730,7 +734,7 @@ impl Board {
             white_kingside_rook_position,
             white_queenside_rook_position,
             black_kingside_rook_position,
-            black_queenside_rook_position
+            black_queenside_rook_position,
         })
     }
 
@@ -745,15 +749,16 @@ impl Board {
         for rank in self.state {
             let mut empty_squares = 0;
 
-            for square in rank {
-                match square {
-                    Some(piece) => {
+            for piece in rank {
+                match piece {
+                    Some(p) => {
                         if empty_squares > 0 {
                             fen.push_str(&empty_squares.to_string());
                             empty_squares = 0;
                         }
-                        fen.push(piece.to_char());
-                    },
+
+                        fen.push(p.to_char());
+                    }
                     None => empty_squares += 1,
                 }
             }
@@ -770,20 +775,32 @@ impl Board {
         fen.push(active_turn);
         fen.push(' ');
 
-        if self.castle_flags.white_kingside { fen.push('K'); }
-        if self.castle_flags.white_queenside { fen.push('Q') }
-        if self.castle_flags.black_kingside { fen.push('k'); }
-        if self.castle_flags.black_queenside { fen.push('q'); }
+        if self.castle_flags.white_kingside {
+            fen.push('K');
+        }
+        if self.castle_flags.white_queenside {
+            fen.push('Q');
+        }
+        if self.castle_flags.black_kingside {
+            fen.push('k');
+        }
+        if self.castle_flags.black_queenside {
+            fen.push('q');
+        }
 
-        if !self.castle_flags.white_kingside && !self.castle_flags.white_queenside && !self.castle_flags.black_kingside && !self.castle_flags.black_queenside {
+        if !self.castle_flags.white_kingside
+            && !self.castle_flags.white_queenside
+            && !self.castle_flags.black_kingside
+            && !self.castle_flags.black_queenside
+        {
             fen.push('-');
         }
 
         fen.push(' ');
 
-        if let Some((rank, file)) = self.en_passant_target_square {
+        if let Some((rank, file)) = self.en_passant_square {
             fen.push((file as u8 + 97) as char);
-            fen.push((8 - rank).to_string().chars().next().unwrap())
+            fen.push((8 - rank).to_string().chars().next().unwrap());
         } else {
             fen.push('-');
         }
