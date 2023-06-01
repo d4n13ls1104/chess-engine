@@ -1,1 +1,3 @@
-pub mod board;
+mod bitboard;
+mod fen;
+mod position;
