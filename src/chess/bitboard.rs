@@ -1,4 +1,4 @@
-pub(super) struct Bitboard(u64);
+pub struct Bitboard(u64);
 
 impl Bitboard {
     pub fn set(&mut self, idx: u8) {
