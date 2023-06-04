@@ -7,10 +7,13 @@ impl Bitboard {
     pub fn unset(&mut self, idx: u8) {
         self.0 &= !(1 << idx);
     }
-    pub fn bits(&mut self) -> u64 {
+    pub fn bits(&self) -> u64 {
         self.0
     }
-    pub fn new() -> Self {
+}
+
+impl Default for Bitboard {
+    fn default() -> Self {
         Self(0)
     }
 }

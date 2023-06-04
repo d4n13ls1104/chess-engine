@@ -30,3 +30,14 @@ impl CastleFlags {
         }
     }
 }
+
+impl Default for CastleFlags {
+    fn default() -> Self {
+        Self {
+            white_kingside: true,
+            white_queenside: true,
+            black_kingside: true,
+            black_queenside: true,
+        }
+    }
+}

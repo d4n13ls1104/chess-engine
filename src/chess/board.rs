@@ -1,7 +1,6 @@
 use super::bitboard::Bitboard;
 
-pub const START_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
+#[derive(Default)]
 pub struct Board {
     pub bb_white_pawn: Bitboard,
     pub bb_white_knight: Bitboard,
@@ -21,16 +20,10 @@ pub struct Board {
 impl Board {
     pub fn from_fen(fen: &str) -> Self {
         let mut fen_fields = Vec::with_capacity(6);
-        let mut board = Self::empty();
+        let mut board = Self::default();
 
-        if fen == "start" {
-            for field in START_FEN.split_whitespace() {
-                fen_fields.push(field);
-            }
-        } else {
-            for field in fen.split_whitespace() {
-                fen_fields.push(field);
-            }
+        for field in fen.split_whitespace() {
+            fen_fields.push(field);
         }
 
         let ranks = fen_fields[0];
@@ -67,22 +60,5 @@ impl Board {
             }
         }
         board
-    }
-
-    pub fn empty() -> Self {
-        Self {
-            bb_white_pawn: Bitboard::new(),
-            bb_white_knight: Bitboard::new(),
-            bb_white_bishop: Bitboard::new(),
-            bb_white_rook: Bitboard::new(),
-            bb_white_queen: Bitboard::new(),
-            bb_white_king: Bitboard::new(),
-            bb_black_pawn: Bitboard::new(),
-            bb_black_knight: Bitboard::new(),
-            bb_black_bishop: Bitboard::new(),
-            bb_black_rook: Bitboard::new(),
-            bb_black_queen: Bitboard::new(),
-            bb_black_king: Bitboard::new(),
-        }
     }
 }
