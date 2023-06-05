@@ -10,6 +10,9 @@ impl Bitboard {
     pub fn bits(&self) -> u64 {
         self.0
     }
+    pub fn nth(&self, n: u8) -> bool {
+        (self.0 >> n) & 1 == 1
+    }
 }
 
 impl Default for Bitboard {
