@@ -19,15 +19,10 @@ pub struct Board {
 
 impl Board {
     pub fn from_fen(fen: &str) -> Self {
-        let mut fen_fields = Vec::with_capacity(6);
         let mut board = Self::default();
 
-        for field in fen.split_whitespace() {
-            fen_fields.push(field);
-        }
-
-        let ranks = fen_fields[0];
-        let rank_chunks: Vec<&str> = ranks.split('/').collect();
+        let fen_fields: Vec<&str> = fen.split_whitespace().collect();
+        let rank_chunks: Vec<&str> = fen_fields[0].split('/').collect();
 
         for (r_idx, rank) in rank_chunks.iter().enumerate() {
             let mut f_idx = 0;
