@@ -18,12 +18,10 @@ pub struct Board {
 }
 
 impl Board {
-    pub fn from_fen(fen: &str) -> Self {
+    pub fn from_ranks(rank_str: &str) -> Self {
         let mut board = Self::default();
 
-        let fen_fields: Vec<&str> = fen.split_whitespace().collect();
-        let rank_chunks: Vec<&str> = fen_fields[0].split('/').collect();
-
+        let rank_chunks: Vec<&str> = rank_str.split('/').collect();
         for (r_idx, rank) in rank_chunks.iter().enumerate() {
             let mut f_idx = 0;
 

@@ -5,7 +5,8 @@ use self::position::Position;
 mod bitboard;
 mod board;
 mod castle_flags;
-mod color;
+pub mod color;
+pub mod piece;
 mod position;
 
 #[derive(Default)]
