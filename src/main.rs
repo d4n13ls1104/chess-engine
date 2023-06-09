@@ -1,11 +1,17 @@
 mod chess;
 mod render;
+mod utils;
 
-use crate::chess::Chess;
-use crate::render::{render_window, textures::load_textures, WINDOW_SIZE};
-use sdl2::{event::Event, keyboard::Keycode};
+use std::io::BufReader;
+
+use sdl2::rect::Point;
+use sdl2::{event::Event, keyboard::Keycode, mouse::MouseButton};
+
+use crate::{chess::{Chess, MoveKind}, render::{render_window, textures::load_textures, WINDOW_SIZE}};
 
 fn main() {
+    let (_stream, handle) = rodio::OutputStream::try_default().unwrap();
+
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -17,10 +23,11 @@ fn main() {
         .unwrap();
 
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-    let texture_creator = canvas.texture_creator();
 
+    let texture_creator = canvas.texture_creator();
     let texture_store = load_textures(&texture_creator);
-    let game = Chess::default();
+
+    let mut game = Chess::default();
 
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -30,9 +37,71 @@ fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => break 'running,
+
+                Event::MouseMotion { x, y, .. } => {
+                    game.mouse_pos = Point::new(x, y);
+                }
+
+                Event::MouseButtonDown {
+                    mouse_btn: MouseButton::Left,
+                    x,
+                    y,
+                    ..
+                } => {
+                    let target_square_idx = utils::bb_pos_from_point(Point::new(x, y));
+                    let piece = game.position.board.piece_at(target_square_idx);
+
+                    if piece.is_some() {
+                        game.mouse_drag = true;
+                        game.target_piece = piece;
+                    }
+                }
+
+                Event::MouseButtonUp {
+                    mouse_btn: MouseButton::Left,
+                    x,
+                    y,
+                    ..
+                } => {
+                    let mouse_up_point = Point::new(x, y);
+                    let dst_square = utils::bb_pos_from_point(mouse_up_point);
+
+                    let move_kind = game.move_selected_piece(dst_square).unwrap();
+                    match move_kind {
+                        MoveKind::MoveSelf => {
+                            let move_self_wav_file =
+                                std::fs::File::open("assets/move-self.wav").unwrap();
+                            let drop_sound = handle
+                                .play_once(BufReader::new(move_self_wav_file))
+                                .unwrap();
+                            drop_sound.set_volume(0.3);
+                            drop_sound.detach();
+                        },
+
+                        MoveKind::Capture => {
+                            let move_capture_wav_file =
+                                std::fs::File::open("assets/capture.wav").unwrap();
+                            let capture_sound = handle
+                                .play_once(BufReader::new(move_capture_wav_file))
+                                .unwrap();
+                            capture_sound.set_volume(0.3);
+                            capture_sound.detach();
+                        }
+
+                        _ => todo!("not implemented"),
+                    }
+
+                    game.mouse_drag = false;
+                    game.target_piece = None;
+                }
                 _ => {}
             }
         }
-        render_window(&mut canvas, &texture_store, &game);
+
+        render_window(
+            &mut canvas,
+            &texture_store,
+            &game,
+        );
     }
 }
