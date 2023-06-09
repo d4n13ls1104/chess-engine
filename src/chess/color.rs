@@ -1,5 +1,6 @@
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default, Debug, PartialEq)]
 pub enum Color {
+    #[default]
     White,
     Black,
 }
@@ -17,11 +18,5 @@ impl Color {
             'b' => Color::Black,
             _ => panic!("Invalid color char"),
         }
-    }
-}
-
-impl Default for Color {
-    fn default() -> Self {
-        Color::White
     }
 }

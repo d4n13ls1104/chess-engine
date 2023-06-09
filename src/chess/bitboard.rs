@@ -1,3 +1,4 @@
+#[derive(Default)]
 pub struct Bitboard(u64);
 
 impl Bitboard {
@@ -12,11 +13,5 @@ impl Bitboard {
     }
     pub fn nth(&self, n: u8) -> bool {
         (self.0 >> n) & 1 == 1
-    }
-}
-
-impl Default for Bitboard {
-    fn default() -> Self {
-        Self(0)
     }
 }

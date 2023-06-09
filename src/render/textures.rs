@@ -10,16 +10,18 @@ use crate::chess::{
     piece::{Piece, PieceKind},
 };
 
+const TEXTURE_BASE_DIR: &str = "textures";
+
 pub fn load_textures(texture_creator: &TextureCreator<WindowContext>) -> Vec<(Piece, Texture)> {
     let mut result: Vec<(Piece, Texture)> = Vec::with_capacity(PIECE_TEXTURE_MAP.len());
     let mut dir = std::env::current_exe().unwrap();
     dir.pop();
-    dir.push("textures");
+    dir.push(TEXTURE_BASE_DIR);
 
     for item in PIECE_TEXTURE_MAP {
-        let (path, piece) = item;
-        let texture_path = dir.join(path);
-        let surface = Surface::from_file(texture_path).unwrap();
+        let (texture_path, piece) = item;
+        let file_path = dir.join(texture_path);
+        let surface = Surface::from_file(file_path).unwrap();
         let texture = texture_creator
             .create_texture_from_surface(&surface)
             .unwrap();
@@ -35,6 +37,7 @@ pub const PIECE_TEXTURE_MAP: [(&str, Piece); 12] = [
         Piece {
             color: Color::White,
             kind: PieceKind::Pawn,
+            pos: 0,
         },
     ),
     (
@@ -42,6 +45,7 @@ pub const PIECE_TEXTURE_MAP: [(&str, Piece); 12] = [
         Piece {
             color: Color::Black,
             kind: PieceKind::Pawn,
+            pos: 0,
         },
     ),
     (
@@ -49,6 +53,7 @@ pub const PIECE_TEXTURE_MAP: [(&str, Piece); 12] = [
         Piece {
             color: Color::White,
             kind: PieceKind::Knight,
+            pos: 0,
         },
     ),
     (
@@ -56,6 +61,7 @@ pub const PIECE_TEXTURE_MAP: [(&str, Piece); 12] = [
         Piece {
             color: Color::Black,
             kind: PieceKind::Knight,
+            pos: 0,
         },
     ),
     (
@@ -63,6 +69,7 @@ pub const PIECE_TEXTURE_MAP: [(&str, Piece); 12] = [
         Piece {
             color: Color::White,
             kind: PieceKind::Bishop,
+            pos: 0,
         },
     ),
     (
@@ -70,6 +77,7 @@ pub const PIECE_TEXTURE_MAP: [(&str, Piece); 12] = [
         Piece {
             color: Color::Black,
             kind: PieceKind::Bishop,
+            pos: 0,
         },
     ),
     (
@@ -77,6 +85,7 @@ pub const PIECE_TEXTURE_MAP: [(&str, Piece); 12] = [
         Piece {
             color: Color::White,
             kind: PieceKind::Rook,
+            pos: 0,
         },
     ),
     (
@@ -84,6 +93,7 @@ pub const PIECE_TEXTURE_MAP: [(&str, Piece); 12] = [
         Piece {
             color: Color::Black,
             kind: PieceKind::Rook,
+            pos: 0,
         },
     ),
     (
@@ -91,6 +101,7 @@ pub const PIECE_TEXTURE_MAP: [(&str, Piece); 12] = [
         Piece {
             color: Color::White,
             kind: PieceKind::Queen,
+            pos: 0,
         },
     ),
     (
@@ -98,6 +109,7 @@ pub const PIECE_TEXTURE_MAP: [(&str, Piece); 12] = [
         Piece {
             color: Color::Black,
             kind: PieceKind::Queen,
+            pos: 0,
         },
     ),
     (
@@ -105,6 +117,7 @@ pub const PIECE_TEXTURE_MAP: [(&str, Piece); 12] = [
         Piece {
             color: Color::White,
             kind: PieceKind::King,
+            pos: 0,
         },
     ),
     (
@@ -112,6 +125,7 @@ pub const PIECE_TEXTURE_MAP: [(&str, Piece); 12] = [
         Piece {
             color: Color::Black,
             kind: PieceKind::King,
+            pos: 0,
         },
     ),
 ];

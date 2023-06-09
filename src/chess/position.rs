@@ -13,7 +13,7 @@ pub struct Position {
 
 impl Default for Position {
     fn default() -> Self {
-        let rank_str: &str = START_FEN.split_whitespace().nth(0).unwrap();
+        let rank_str: &str = START_FEN.split_whitespace().next().unwrap();
         Self {
             board: Board::from_ranks(rank_str),
             active_turn: Color::default(),
