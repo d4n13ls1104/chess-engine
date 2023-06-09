@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 sdl2 = { version = "0.35.2", features = ["image"] }
+rodio = "0.17.1"
