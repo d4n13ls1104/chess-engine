@@ -1,3 +1,4 @@
+use crate::utils;
 use super::{
     bitboard::Bitboard,
     color::Color,
@@ -19,7 +20,7 @@ pub struct Board {
 
 impl Board {
     pub fn put_piece(&mut self, piece: Piece, pos: u8) {
-        let piece_bb = self.bb_for_piece_mut(piece.kind);
+        let piece_bb = self.bb_for_piece_kind_mut(piece.kind);
         piece_bb.set(pos);
         let color_bb = self.bb_for_color_mut(piece.color);
         color_bb.set(pos);
@@ -27,10 +28,69 @@ impl Board {
 
     pub fn remove_piece(&mut self, piece: Piece, pos: u8) {
         let piece = self.piece_at(pos).unwrap();
-        let piece_bb = self.bb_for_piece_mut(piece.kind);
+        let piece_bb = self.bb_for_piece_kind_mut(piece.kind);
         piece_bb.unset(pos);
         let color_bb = self.bb_for_color_mut(piece.color);
         color_bb.unset(pos);
+    }
+
+    pub fn from_ranks(rank_str: &str) -> Self {
+        let mut board = Self::default();
+
+        let rank_chunks = rank_str.split('/');
+        for (rank_idx, rank) in rank_chunks.enumerate() {
+            let mut file_idx = 0;
+
+            for c in rank.chars() {
+                if c.is_numeric() {
+                    file_idx += c.to_digit(10).unwrap() as u8;
+                } else {
+                    let piece_kind = PieceKind::from_char(c);
+                    let piece_color = Color::from_char_case(c);
+                    let pos = utils::bb_pos_from_2d(rank_idx as u8, file_idx);
+
+                    board.put_piece(Piece::new(piece_kind, piece_color, pos), pos);
+                    file_idx += 1;
+                }
+            }
+        }
+        board
+    }
+
+    pub fn piece_at(&self, pos: u8) -> Option<Piece> {
+        let pawn_occupies = self.bb_pawn.nth(pos);
+        let knight_occupies = self.bb_knight.nth(pos);
+        let bishop_occupies = self.bb_bishop.nth(pos);
+        let rook_occupies = self.bb_rook.nth(pos);
+        let queen_occupies = self.bb_queen.nth(pos);
+        let king_occupies = self.bb_king.nth(pos);
+
+        let white_occupies = self.bb_white.nth(pos);
+        let black_occupies = self.bb_black.nth(pos);
+
+        let color = if white_occupies {
+            Color::White
+        } else if black_occupies {
+            Color::Black
+        } else {
+            return None;
+        };
+
+        if pawn_occupies {
+            Some(Piece::new(PieceKind::Pawn, color, pos))
+        } else if knight_occupies {
+            Some(Piece::new(PieceKind::Knight, color, pos))
+        } else if bishop_occupies {
+            Some(Piece::new(PieceKind::Pawn, color, pos))
+        } else if rook_occupies {
+            Some(Piece::new(PieceKind::Pawn, color, pos))
+        } else if queen_occupies {
+            Some(Piece::new(PieceKind::Pawn, color, pos))
+        } else if king_occupies {
+            Some(Piece::new(PieceKind::Pawn, color, pos))
+        } else {
+            None
+        }
     }
 
     pub fn bb_for_color_mut(&mut self, color: Color) -> &mut Bitboard {
@@ -40,7 +100,7 @@ impl Board {
         }
     }
 
-    pub fn bb_for_piece_mut(&mut self, kind: PieceKind) -> &mut Bitboard {
+    pub fn bb_for_piece_kind_mut(&mut self, kind: PieceKind) -> &mut Bitboard {
         match kind {
             PieceKind::Pawn => &mut self.bb_pawn,
             PieceKind::Knight => &mut self.bb_knight,
@@ -51,92 +111,21 @@ impl Board {
         }
     }
 
-    pub fn bb_for_piece(&self, kind: PieceKind) -> Bitboard {
+    pub fn bb_for_piece_kind(&self, kind: PieceKind) -> &Bitboard {
         match kind {
-            PieceKind::Pawn => self.bb_pawn,
-            PieceKind::Knight => self.bb_knight,
-            PieceKind::Bishop => self.bb_bishop,
-            PieceKind::Rook => self.bb_rook,
-            PieceKind::Queen => self.bb_queen,
-            PieceKind::King => self.bb_king,
+            PieceKind::Pawn => &self.bb_pawn,
+            PieceKind::Knight => &self.bb_knight,
+            PieceKind::Bishop => &self.bb_bishop,
+            PieceKind::Rook => &self.bb_rook,
+            PieceKind::Queen => &self.bb_queen,
+            PieceKind::King => &self.bb_king,
         }
     }
 
-    pub fn bb_for_color(&self, color: Color) -> Bitboard {
+    pub fn bb_for_color(&self, color: Color) -> &Bitboard {
         match color {
-            Color::White => self.bb_white,
-            Color::Black => self.bb_black,
+            Color::White => &self.bb_white,
+            Color::Black => &self.bb_black,
         }
-    }
-
-    pub fn piece_at(&self, idx: u8) -> Option<Piece> {
-        let pawn_occupies = self.bb_pawn.nth(idx);
-        let knight_occupies = self.bb_knight.nth(idx);
-        let bishop_occupies = self.bb_bishop.nth(idx);
-        let rook_occupies = self.bb_rook.nth(idx);
-        let queen_occupies = self.bb_queen.nth(idx);
-        let king_occupies = self.bb_king.nth(idx);
-
-        let color = if self.bb_white.nth(idx) {
-            Color::White
-        } else if self.bb_black.nth(idx) {
-            Color::Black
-        } else {
-            return None;
-        };
-
-        if pawn_occupies {
-            Some(Piece::new(color, PieceKind::Pawn, idx))
-        } else if knight_occupies {
-            Some(Piece::new(color, PieceKind::Knight, idx))
-        } else if bishop_occupies {
-            Some(Piece::new(color, PieceKind::Bishop, idx))
-        } else if rook_occupies {
-            Some(Piece::new(color, PieceKind::Rook, idx))
-        } else if queen_occupies {
-            Some(Piece::new(color, PieceKind::Queen, idx))
-        } else if king_occupies {
-            Some(Piece::new(color, PieceKind::King, idx))
-        } else {
-            None
-        }
-    }
-
-    pub fn from_ranks(rank_str: &str) -> Self {
-        let mut board = Self::default();
-
-        let rank_chunks: Vec<&str> = rank_str.split('/').collect();
-        for (r_idx, rank) in rank_chunks.iter().enumerate() {
-            let mut f_idx = 0;
-
-            for c in rank.chars() {
-                if c.is_numeric() {
-                    f_idx += c.to_digit(10).unwrap() as u8;
-                } else {
-                    let idx = (r_idx as u8 * 8) + f_idx;
-                    let piece_color = if c.is_ascii_uppercase() {
-                        Color::White
-                    } else {
-                        Color::Black
-                    };
-
-                    match c.to_ascii_uppercase() {
-                        'P' => board.bb_pawn.set(idx),
-                        'N' => board.bb_knight.set(idx),
-                        'B' => board.bb_bishop.set(idx),
-                        'R' => board.bb_rook.set(idx),
-                        'Q' => board.bb_queen.set(idx),
-                        'K' => board.bb_king.set(idx),
-                        _ => panic!("Invalid piece char: '{c}'"),
-                    }
-                    match piece_color {
-                        Color::White => board.bb_white.set(idx),
-                        Color::Black => board.bb_black.set(idx),
-                    }
-                    f_idx += 1;
-                }
-            }
-        }
-        board
     }
 }

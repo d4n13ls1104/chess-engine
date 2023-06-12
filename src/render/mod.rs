@@ -2,7 +2,7 @@ use sdl2::rect::{Point, Rect};
 use sdl2::render::{Canvas, Texture};
 use sdl2::video::Window;
 
-use crate::chess::{Chess, piece::Piece}; 
+use crate::chess::{piece::Piece, Chess};
 
 pub mod textures;
 
@@ -21,7 +21,7 @@ pub fn render_window(
     canvas.set_draw_color(BACKGROUND_COLOR);
     canvas.clear();
 
-    let board = &mut game.position.board;
+    let board = &game.position.board;
     for row in 0..BOARD_SIZE {
         for col in 0..BOARD_SIZE {
             let x = col * CELL_SIZE;
@@ -41,11 +41,9 @@ pub fn render_window(
                 let (piece, texture) = item;
 
                 let bit_idx = (row * BOARD_SIZE + col) as u8;
-                // check if the piece being dragged is the one currently being rendered,
-                // if it is skip over it to make it look like we picked it up
-                if let Some(target_piece) = game.target_piece {
+                if let Some(target_piece) = game.selected_piece {
                     if target_piece.pos == bit_idx {
-                        continue; // skip iteration and dont render grabbed piece
+                        continue;
                     }
                 }
 
@@ -63,7 +61,7 @@ pub fn render_window(
 
     if game.mouse_drag {
         if let Some((piece, _)) = texture_store.iter().find(|(p, _)| {
-            let target_piece = game.target_piece.unwrap();
+            let target_piece = game.selected_piece.unwrap();
             p.kind == target_piece.kind && p.color == target_piece.color
         }) {
             render_piece_at_cursor(canvas, texture_store, *piece, game.mouse_pos);
@@ -76,7 +74,7 @@ fn render_piece_at_cursor(
     canvas: &mut Canvas<Window>,
     texture_store: &Vec<(Piece, Texture)>,
     piece: Piece,
-    mouse_pos: Point
+    mouse_pos: Point,
 ) {
     let texture = texture_store
         .iter()

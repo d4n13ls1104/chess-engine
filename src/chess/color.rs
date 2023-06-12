@@ -19,4 +19,11 @@ impl Color {
             _ => panic!("Invalid color char"),
         }
     }
+    pub fn from_char_case(c: char) -> Self {
+        if c.is_ascii_uppercase() {
+            Color::White
+        } else {
+            Color::Black
+        }
+    }
 }

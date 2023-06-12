@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use super::color::Color;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -10,6 +11,20 @@ pub enum PieceKind {
     King,
 }
 
+impl PieceKind {
+    pub fn from_char(c: char) -> PieceKind {
+        match c.to_ascii_uppercase() {
+            'P' => PieceKind::Pawn, 
+            'N' => PieceKind::Knight, 
+            'B' => PieceKind::Bishop, 
+            'R' => PieceKind::Rook, 
+            'Q' => PieceKind::Queen, 
+            'K' => PieceKind::King, 
+            _ => panic!("Invalid piece char: '{c}'"),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Piece {
     pub color: Color,
@@ -18,7 +33,7 @@ pub struct Piece {
 }
 
 impl Piece {
-    pub fn new(color: Color, kind: PieceKind, pos: u8) -> Self {
-        Self { color, kind, pos }
+    pub fn new( kind: PieceKind, color: Color, pos: u8) -> Piece {
+        Self { kind, color, pos }
     }
 }
