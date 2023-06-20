@@ -1,15 +1,21 @@
-use sdl2::rect::Point;
-use sdl2::{event::Event, keyboard::Keycode, mouse::MouseButton};
-use std::io::BufReader;
-
 use crate::{
-    chess::{Chess, MoveKind},
-    render::{render_window, textures::load_textures, WINDOW_SIZE},
+    chess::Chess,
+    render::{render_window, WINDOW_SIZE},
+    utils::load_textures,
+    audio::play_sound,
+};
+
+use sdl2::{
+    event::Event,
+    keyboard::Keycode,
+    mouse::MouseButton,
+    rect::Point,
 };
 
 mod chess;
-mod render;
 mod utils;
+mod render;
+mod audio;
 
 fn main() {
     let (_rodio_stream, rodio_handle) = rodio::OutputStream::try_default().unwrap();
@@ -67,28 +73,8 @@ fn main() {
                     let mouse_up_point = Point::new(x, y);
                     let dst_square = utils::bb_pos_from_pixel_pos(mouse_up_point);
 
-                    let move_kind = game.move_selected_piece(dst_square).unwrap();
-                    match move_kind {
-                        MoveKind::MoveSelf => {
-                            let move_self_wav_file = std::fs::File::open("assets/move-self.wav").unwrap();
-                            let drop_sound = rodio_handle
-                                .play_once(BufReader::new(move_self_wav_file))
-                                .unwrap();
-                            drop_sound.set_volume(0.3);
-                            drop_sound.detach();
-                        }
-
-                        MoveKind::Capture => {
-                            let move_capture_wav_file = std::fs::File::open("assets/capture.wav").unwrap();
-                            let capture_sound = rodio_handle
-                                .play_once(BufReader::new(move_capture_wav_file))
-                                .unwrap();
-                            capture_sound.set_volume(0.3);
-                            capture_sound.detach();
-                        }
-
-                        _ => todo!("not implemented"),
-                    }
+                    let move_kind = game.drop_selected_piece(dst_square).unwrap();
+                    play_sound(move_kind, &rodio_handle);
 
                     game.mouse_drag = false;
                     game.selected_piece = None;
