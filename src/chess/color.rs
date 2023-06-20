@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, Default, Debug, PartialEq)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Hash, Eq)]
 pub enum Color {
     #[default]
     White,

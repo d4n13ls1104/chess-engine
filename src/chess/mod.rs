@@ -29,38 +29,36 @@ pub struct Chess {
 }
 
 impl Chess {
-    pub fn move_selected_piece(&mut self, dst_square: u8) -> Result<MoveKind, IllegalMoveError> {
-        let origin_piece = match self.selected_piece {
+    pub fn drop_selected_piece(&mut self, dst_square: u8) -> Result<MoveKind, IllegalMoveError> {
+        let mut selected_piece = match self.selected_piece {
             Some(p) => p,
             None => {
-                return Err(IllegalMoveError::MissingOriginPiece);
-            }
-        };
-
-        let board = &mut self.position.board;
-        match self.selected_piece {
-            Some(target_piece) => {
-                let is_capturing_opponent = target_piece.color != origin_piece.color;
-
-                if is_capturing_opponent {
-                    board.remove_piece(target_piece, dst_square);
-                    board.remove_piece(origin_piece, origin_piece.pos);
-
-                    board.put_piece(origin_piece, dst_square);
-                    return Ok(MoveKind::Capture);
-                }
-                return Err(IllegalMoveError::SelfCapture {
-                    origin_piece,
-                    target_piece,
-                });
+                return Err(IllegalMoveError::MissingOriginPiece)
             },
+        };
+        
+        let board = &mut self.position.board;
+        if let Some(target_piece) = board.piece_at(dst_square) {
+            let is_capturing_opponent = target_piece.color != selected_piece.color;
 
-            None => {
-                board.remove_piece(origin_piece, origin_piece.pos);
-                board.put_piece(origin_piece, dst_square);
-                return Ok(MoveKind::MoveSelf);
+            if is_capturing_opponent {
+                board.remove_piece(target_piece);
+                board.remove_piece(selected_piece);
+
+                selected_piece.pos = dst_square;
+                board.put_piece(selected_piece);
+                return Ok(MoveKind::Capture);
             }
+            return Err(IllegalMoveError::SelfCapture {
+                selected_piece,
+                target_piece,
+            });
         }
+
+        board.remove_piece(selected_piece);
+        selected_piece.pos = dst_square;
+        board.put_piece(selected_piece);
+        return Ok(MoveKind::MoveSelf);
     }
 }
 

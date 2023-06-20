@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use super::color::Color;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Hash, Eq)]
 pub enum PieceKind {
     Pawn,
     Knight,
@@ -25,7 +25,7 @@ impl PieceKind {
     }
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, Hash, PartialEq, Copy, Clone)]
 pub struct Piece {
     pub color: Color,
     pub kind: PieceKind,
@@ -34,6 +34,6 @@ pub struct Piece {
 
 impl Piece {
     pub fn new( kind: PieceKind, color: Color, pos: u8) -> Piece {
-        Self { kind, color, pos }
+        Self { color, kind, pos }
     }
 }

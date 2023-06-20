@@ -1,10 +1,9 @@
+use std::collections::HashMap;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::{Canvas, Texture};
 use sdl2::video::Window;
 
 use crate::chess::{piece::Piece, Chess};
-
-pub mod textures;
 
 pub const BOARD_SIZE: u16 = 8;
 pub const WINDOW_SIZE: u16 = 624;
@@ -15,7 +14,7 @@ const BACKGROUND_COLOR: sdl2::pixels::Color = sdl2::pixels::Color::RGB(240, 217,
 
 pub fn render_window(
     canvas: &mut Canvas<Window>,
-    texture_store: &Vec<(Piece, Texture)>,
+    texture_store: &HashMap<Piece, Texture>,
     game: &Chess,
 ) {
     canvas.set_draw_color(BACKGROUND_COLOR);
@@ -60,27 +59,20 @@ pub fn render_window(
     }
 
     if game.mouse_drag {
-        if let Some((piece, _)) = texture_store.iter().find(|(p, _)| {
-            let target_piece = game.selected_piece.unwrap();
-            p.kind == target_piece.kind && p.color == target_piece.color
-        }) {
-            render_piece_at_cursor(canvas, texture_store, *piece, game.mouse_pos);
-        }
+        let selected_piece = game.selected_piece.unwrap();
+        render_piece_at_cursor(canvas, texture_store, Piece::new(selected_piece.kind, selected_piece.color, 0), game.mouse_pos);
     }
     canvas.present();
 }
 
 fn render_piece_at_cursor(
     canvas: &mut Canvas<Window>,
-    texture_store: &Vec<(Piece, Texture)>,
+    texture_store: &HashMap<Piece, Texture>,
     piece: Piece,
     mouse_pos: Point,
 ) {
-    let texture = texture_store
-        .iter()
-        .find(|(p, _)| *p == piece)
-        .map(|(_, texture)| texture)
-        .unwrap();
+    let texture = texture_store.get(&piece).unwrap();
+
     let rect = Rect::new(
         mouse_pos.x() - (CELL_SIZE / 2) as i32,
         mouse_pos.y() - (CELL_SIZE / 2) as i32,

@@ -1,5 +1,4 @@
-use crate::utils;
-use super::{
+use crate::chess::{
     bitboard::Bitboard,
     color::Color,
     piece::{Piece, PieceKind},
@@ -19,19 +18,20 @@ pub struct Board {
 }
 
 impl Board {
-    pub fn put_piece(&mut self, piece: Piece, pos: u8) {
+    pub fn put_piece(&mut self, piece: Piece) {
         let piece_bb = self.bb_for_piece_kind_mut(piece.kind);
-        piece_bb.set(pos);
+        piece_bb.set(piece.pos);
         let color_bb = self.bb_for_color_mut(piece.color);
-        color_bb.set(pos);
+        color_bb.set(piece.pos);
     }
 
-    pub fn remove_piece(&mut self, piece: Piece, pos: u8) {
-        let piece = self.piece_at(pos).unwrap();
+    pub fn remove_piece(&mut self, piece: Piece) {
+        // TODO: get rid of .unwrap(), use an error type instead
+        let piece = self.piece_at(piece.pos).unwrap();
         let piece_bb = self.bb_for_piece_kind_mut(piece.kind);
-        piece_bb.unset(pos);
+        piece_bb.unset(piece.pos);
         let color_bb = self.bb_for_color_mut(piece.color);
-        color_bb.unset(pos);
+        color_bb.unset(piece.pos);
     }
 
     pub fn from_ranks(rank_str: &str) -> Self {
@@ -47,9 +47,9 @@ impl Board {
                 } else {
                     let piece_kind = PieceKind::from_char(c);
                     let piece_color = Color::from_char_case(c);
-                    let pos = utils::bb_pos_from_2d(rank_idx as u8, file_idx);
+                    let pos = crate::utils::bb_pos_from_2d(rank_idx as u8, file_idx);
 
-                    board.put_piece(Piece::new(piece_kind, piece_color, pos), pos);
+                    board.put_piece(Piece::new(piece_kind, piece_color, pos));
                     file_idx += 1;
                 }
             }
@@ -81,13 +81,13 @@ impl Board {
         } else if knight_occupies {
             Some(Piece::new(PieceKind::Knight, color, pos))
         } else if bishop_occupies {
-            Some(Piece::new(PieceKind::Pawn, color, pos))
+            Some(Piece::new(PieceKind::Bishop, color, pos))
         } else if rook_occupies {
-            Some(Piece::new(PieceKind::Pawn, color, pos))
+            Some(Piece::new(PieceKind::Rook, color, pos))
         } else if queen_occupies {
-            Some(Piece::new(PieceKind::Pawn, color, pos))
+            Some(Piece::new(PieceKind::Queen, color, pos))
         } else if king_occupies {
-            Some(Piece::new(PieceKind::Pawn, color, pos))
+            Some(Piece::new(PieceKind::King, color, pos))
         } else {
             None
         }
